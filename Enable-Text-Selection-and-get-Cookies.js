@@ -2,7 +2,7 @@
 // @name         Enable Text Selection and Get Cookies
 // @namespace    https://greasyfork.org/users/296362
 // @updateURL    https://greasyfork.org/scripts/471743-enable-text-selection-and-get-cookies/code/Enable%20Text%20Selection%20and%20Get%20Cookies.user.js
-// @version      23.07.26
+// @version      23.07.26.1
 // @description  Adds draggable buttons to enable text selection and get cookies of the current page
 // @match        http*://*/*
 // @exclude      https://*.figma.com/*
