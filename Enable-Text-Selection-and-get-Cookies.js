@@ -11,8 +11,6 @@
 // @grant        none
 // @run-at       document-idle
 // @connect      *
-// @downloadURL https://update.greasyfork.org/scripts/471743/Enable%20Text%20Selection%20and%20Get%20Cookies.user.js
-// @updateURL https://update.greasyfork.org/scripts/471743/Enable%20Text%20Selection%20and%20Get%20Cookies.meta.js
 // ==/UserScript==
 
 (function () {
@@ -120,7 +118,7 @@
     const enableCopyStyle = {
         position: 'fixed',
         top: '85%',
-        right: '-2rem',
+        right: '-0.5rem',
         transform: 'translateY(-50%)',
         zIndex: findMaxZindex() + 1,
         transition: 'right 0.3s ease-in-out',
@@ -129,7 +127,7 @@
     const cookieStyle = {
         position: 'fixed',
         top: '80%',
-        right: '-2rem',
+        right: '-0.5rem',
         transform: 'translateY(-50%)',
         zIndex: findMaxZindex() + 1,
         transition: 'right 0.3s ease-in-out',
