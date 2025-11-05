@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Enable Text Selection and Get Cookies
 // @namespace    https://greasyfork.org/users/296362
-// @version      24.09.12.0
+// @version      25.11.05.0
 // @author       Lancelotly.Sagirrarimeow
-// @description  Adds draggable buttons to enable text selection and get cookies of the current page
+// @description  Adds draggable buttons to enable text selection and get cookies of the current page. [updates: - Click cancle to close browser alert.]
 // @match        *://*/*
 // @noframes
 // @exclude      https://*.figma.com/*
@@ -29,7 +29,7 @@
         applyTextSelection();
         const events = ['copy', 'cut', 'contextmenu', 'selectstart', 'mousedown', 'mouseup', 'mousemove', 'keydown', 'keypress', 'keyup'];
         events.forEach(event => {
-            document.documentElement.addEventListener(event, stopPropagation, {capture: true});
+            document.documentElement.addEventListener(event, stopPropagation, { capture: true });
 
         });
         alert('Text selection enabled!');
@@ -57,10 +57,17 @@
             return `${cookie.name}=${cookie.value}`;
         }).join('; ');
 
-        prompt("Cookie Data:", cookieString);
+        const cookiePromptResult = prompt("Cookie Data: (please use ctrl+c or command+c to copy)", cookieString);
+        if (cookiePromptResult === null) {
+            return;
+        }
 
-        const name = prompt("Enter the localStorage name you'd like to access:", "access_token");
-        const localStorageItem = localStorage.getItem(name);
+        const namePromptResult = prompt("Enter the localStorage name you'd like to access:", "access_token");
+        if (namePromptResult === null) {
+            return;
+        }
+
+        const localStorageItem = localStorage.getItem(namePromptResult);
         prompt("localStorageItem:", localStorageItem);
     }
 
@@ -70,7 +77,7 @@
         document.cookie.split(';').forEach(cookie => {
             const [name, , domain] = cookie.trim().split(/=| |\./);
             //if (domain === document.location.hostname) {
-                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/; domain=${domain};`;
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/; domain=${domain};`;
             //}
         });
         localStorage.clear();
@@ -88,11 +95,11 @@
         document
             .querySelectorAll("*")
             .forEach(el => {
-            const zIndex = parseInt(window.getComputedStyle(el).zIndex, 10);
-            if (!isNaN(zIndex)) {
-                zIndexes.push(zIndex);
-            }
-        });
+                const zIndex = parseInt(window.getComputedStyle(el).zIndex, 10);
+                if (!isNaN(zIndex)) {
+                    zIndexes.push(zIndex);
+                }
+            });
         return Math.max.apply(1, zIndexes);
     }
 
@@ -136,62 +143,28 @@
         button.addEventListener('mousedown', onMousedown);
     }
 
-    ///////
-    const hoverStyle = {
-        right: 0,
-    };
-
-    const enableCopyStyle = {
-        position: 'fixed',
-        top: '80%',
-        right: '-0.5rem',
-        transform: 'translateY(-50%)',
-        zIndex: findMaxZindex() + 1,
-        transition: 'right 0.3s ease-in-out',
-    }
-
-    const cookieStyle = {
-        position: 'fixed',
-        top: '85%',
-        right: '-0.5rem',
-        transform: 'translateY(-50%)',
-        zIndex: findMaxZindex() + 1,
-        transition: 'right 0.3s ease-in-out',
-    }
-
-    const cleanWebsiteDataStyle = {
-        position: 'fixed',
-        top: '90%',
-        right: '-0.5rem',
-        transform: 'translateY(-50%)',
-        zIndex: findMaxZindex() + 1,
-        transition: 'right 0.3s ease-in-out',
+    function createButton(text, onClick, topPercentage, styleClass) {
+        const button = document.createElement('button');
+        button.classList.add(styleClass);
+        Object.assign(button.style, {
+            position: 'fixed',
+            top: `${topPercentage}%`,
+            right: '-0.5rem',
+            transform: 'translateY(-50%)',
+            zIndex: findMaxZindex() + 1,
+            transition: 'right 0.3s ease-in-out',
+        });
+        button.innerText = text;
+        button.addEventListener('click', onClick);
+        button.addEventListener('mouseenter', () => Object.assign(button.style, { right: '0' }));
+        button.addEventListener('mouseleave', () => Object.assign(button.style, { right: '-0.5rem' }));
+        return button;
     }
 
     function addButton() {
-        const enableCopyButton = document.createElement('button');
-        enableCopyButton.classList.add('enable-copy-button');
-        Object.assign(enableCopyButton.style, enableCopyStyle);
-        enableCopyButton.innerText = '🔓';
-        enableCopyButton.addEventListener('click', enableTextSelection);
-        enableCopyButton.addEventListener('mouseenter', () => Object.assign(enableCopyButton.style, hoverStyle));
-        enableCopyButton.addEventListener('mouseleave', () => Object.assign(enableCopyButton.style, enableCopyStyle));
-
-        const cookieButton = document.createElement('button');
-        cookieButton.classList.add('cookie-button');
-        Object.assign(cookieButton.style, cookieStyle);
-        cookieButton.innerText = '🍪';
-        cookieButton.addEventListener('click', getCookieString);
-        cookieButton.addEventListener('mouseenter', () => Object.assign(cookieButton.style, hoverStyle));
-        cookieButton.addEventListener('mouseleave', () => Object.assign(cookieButton.style, cookieStyle));
-
-        const cleanWebsiteData = document.createElement('button');
-        cleanWebsiteData.classList.add('cookie-button');
-        Object.assign(cleanWebsiteData.style, cleanWebsiteDataStyle);
-        cleanWebsiteData.innerText = '🧹';
-        cleanWebsiteData.addEventListener('click', cleanWebsite);
-        cleanWebsiteData.addEventListener('mouseenter', () => Object.assign(cleanWebsiteData.style, hoverStyle));
-        cleanWebsiteData.addEventListener('mouseleave', () => Object.assign(cleanWebsiteData.style, cleanWebsiteDataStyle));
+        enableCopyButton = createButton('🔓', enableTextSelection, 80, 'enable-copy-button');
+        cookieButton = createButton('🍪', getCookieString, 85, 'cookie-button');
+        const cleanWebsiteData = createButton('🧹', cleanWebsite, 90, 'cookie-button');
 
         document.body.append(enableCopyButton, cookieButton, cleanWebsiteData);
         makeDraggable(enableCopyButton);
@@ -201,4 +174,3 @@
     addButton();
 
 })();
-
