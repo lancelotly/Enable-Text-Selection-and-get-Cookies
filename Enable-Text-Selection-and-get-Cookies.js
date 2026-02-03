@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Enable Text Selection and Get Cookies
 // @namespace    https://greasyfork.org/users/296362
-// @version      25.11.05.0
+// @version      26020312
 // @author       Lancelotly.Sagirrarimeow
 // @description  Adds draggable buttons to enable text selection and get cookies of the current page. [updates: - Click cancle to close browser alert.]
 // @match        *://*/*
@@ -17,160 +17,176 @@
 (function () {
     'use strict';
 
-    let enableCopyButton;
-    let cookieButton;
-    let cookieCleanButton;
-    let isClicked = false;
+    // --- Configuration ---
+    const Z_INDEX = 2147483647; // Max 32-bit integer
 
-    function enableTextSelection(e) {
-        e.stopPropagation();
-        e.stopImmediatePropagation && e.stopImmediatePropagation();
+    // --- Actions ---
+    const actions = {
+        unlock: {
+            icon: '🔓',
+            title: 'Enable Selection & Copy',
+            active: false,
+            // Re-usable handler to ensure we can remove it later
+            handler: (e) => {
+                e.stopPropagation();
+                if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            },
+            fn: (btn) => {
+                const EVENTS = ['copy', 'cut', 'contextmenu', 'selectstart', 'mousedown', 'mouseup', 'mousemove', 'keydown', 'keypress', 'keyup'];
+                const ID = 'web-tools-unlock-style';
 
-        applyTextSelection();
-        const events = ['copy', 'cut', 'contextmenu', 'selectstart', 'mousedown', 'mouseup', 'mousemove', 'keydown', 'keypress', 'keyup'];
-        events.forEach(event => {
-            document.documentElement.addEventListener(event, stopPropagation, { capture: true });
+                if (actions.unlock.active) {
+                    // --- DISABLE ---
+                    const existing = document.getElementById(ID);
+                    if (existing) existing.remove();
 
-        });
-        alert('Text selection enabled!');
+                    EVENTS.forEach(event => {
+                        window.removeEventListener(event, actions.unlock.handler, { capture: true });
+                    });
 
-        isClicked = true;
-        enableCopyButton.innerText = '🔓';
-        enableCopyButton.removeEventListener('click', enableTextSelection);
-    }
+                    actions.unlock.active = false;
+                    btn.style.opacity = '0.7';
+                } else {
+                    // --- ENABLE ---
+                    // 1. CSS Injection (Global override)
+                    const css = document.createElement('style');
+                    css.id = ID;
+                    css.textContent = `*,p,div{user-select:text!important;-moz-user-select:text!important;-webkit-user-select:text!important;pointer-events:auto!important;}`;
+                    document.head.appendChild(css);
 
-    function applyTextSelection() {
-        document.querySelectorAll('*').forEach(function (element) {
-            if (window.getComputedStyle(element, null).getPropertyValue('user-select') === 'none') {
-                element.style.setProperty('user-select', 'text', 'important');
-            }
-        });
-    }
+                    // 2. Inline Style Injection (For specific element overrides)
+                    document.querySelectorAll('*').forEach(el => {
+                        if (window.getComputedStyle(el).userSelect === 'none') {
+                            el.style.setProperty('user-select', 'text', 'important');
+                        }
+                    });
 
-    async function getCookieString() {
-        //const cookies = document.cookie;
-        //const cookies = await cookieStore.getAll();
-        const cs = await GM.cookie.list({ url: window.location.host, partitionKey: {} });
-        console.log(cs);
+                    // 3. Aggressive Event Stopping (The "Original" logic)
+                    EVENTS.forEach(event => {
+                        window.addEventListener(event, actions.unlock.handler, { capture: true });
+                    });
 
-        const cookieString = Object.values(cs).map(cookie => {
-            return `${cookie.name}=${cookie.value}`;
-        }).join('; ');
-
-        const cookiePromptResult = prompt("Cookie Data: (please use ctrl+c or command+c to copy)", cookieString);
-        if (cookiePromptResult === null) {
-            return;
-        }
-
-        const namePromptResult = prompt("Enter the localStorage name you'd like to access:", "access_token");
-        if (namePromptResult === null) {
-            return;
-        }
-
-        const localStorageItem = localStorage.getItem(namePromptResult);
-        prompt("localStorageItem:", localStorageItem);
-    }
-
-    function cleanWebsite() {
-        const hostname = document.location.hostname;
-        // Clear cookies
-        document.cookie.split(';').forEach(cookie => {
-            const [name, , domain] = cookie.trim().split(/=| |\./);
-            //if (domain === document.location.hostname) {
-            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/; domain=${domain};`;
-            //}
-        });
-        localStorage.clear();
-        alert('First-party cookies, domain localStorage cleared!');
-        location.reload();
-    }
-
-    function stopPropagation(event) {
-        event.stopPropagation();
-        event.stopImmediatePropagation && event.stopImmediatePropagation();
-    }
-
-    function findMaxZindex() {
-        const zIndexes = [];
-        document
-            .querySelectorAll("*")
-            .forEach(el => {
-                const zIndex = parseInt(window.getComputedStyle(el).zIndex, 10);
-                if (!isNaN(zIndex)) {
-                    zIndexes.push(zIndex);
+                    actions.unlock.active = true;
+                    btn.style.opacity = '1';
+                    alert('Text selection enabled!');
                 }
-            });
-        return Math.max.apply(1, zIndexes);
-    }
+            }
+        },
+        cookie: {
+            icon: '🍪',
+            title: 'Copy Cookies & LocalStorage',
+            fn: async () => {
+                // Restore original 3-step prompt flow
 
+                // 1. Get Cookies
+                const cookieString = document.cookie.split(';').map(c => c.trim()).join('; ');
+                const cookiePromptResult = prompt("Cookie Data: (please use ctrl+c or command+c to copy)", cookieString);
+                if (cookiePromptResult === null) return;
 
-    function makeDraggable(button) {
-        let isDragging = false;
-        let startX, startY, startLeft, startTop;
+                // 2. Ask for LocalStorage Key
+                const namePromptResult = prompt("Enter the localStorage name you'd like to access:", "access_token");
+                if (namePromptResult === null) return;
 
-        function onMousedown(e) {
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            startLeft = button.offsetLeft;
-            startTop = button.offsetTop;
-            document.addEventListener('mousemove', onMousemove);
-            document.addEventListener('mouseup', onMouseup);
-        }
+                // 3. Show LocalStorage Value
+                const localStorageItem = localStorage.getItem(namePromptResult);
+                prompt("localStorageItem:", localStorageItem);
+            }
+        },
+        clean: {
+            icon: '🧹',
+            title: 'Nuke: Clear Cookies & LocalStorage',
+            fn: () => {
+                if (!confirm('Clear all cookies and local storage for this site?')) return;
 
-        function onMousemove(e) {
-            if (isDragging) {
-                const dx = e.clientX - startLeft;
-                const dy = e.clientY - startTop;
-                moveButtonBy(dx, dy);
+                // Clear Local/Session Storage
+                localStorage.clear();
+                sessionStorage.clear();
+
+                // Clear Cookies (brute force paths/domains)
+                const cookies = document.cookie.split(";");
+                const domainParts = location.hostname.split('.');
+
+                cookies.forEach(c => {
+                    const name = c.trim().split("=")[0];
+                    const paths = ["/", location.pathname];
+
+                    // Try clearing on current domain and wildcards
+                    paths.forEach(path => {
+                        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=${path}`;
+                        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=${path};domain=${location.hostname}`;
+
+                        // Handle subdomains (e.g. .google.com)
+                        if (domainParts.length > 1) {
+                             document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=${path};domain=.${domainParts.slice(-2).join('.')}`;
+                        }
+                    });
+                });
+
+                location.reload();
             }
         }
+    };
 
-        function moveButtonBy(dx, dy) {
-            button.style.transform = `translate(${dx}px, ${dy}px)`;
-        }
+    // --- UI Construction (Shadow DOM) ---
+    function init() {
+        const host = document.createElement('div');
+        host.id = 'web-tools-host';
+        document.documentElement.appendChild(host);
 
-        function onMouseup(e) {
-            isDragging = false;
-            startX = e.clientX;
-            startY = e.clientY;
-            startLeft = button.offsetLeft;
-            startTop = button.offsetTop;
-            document.removeEventListener('mousemove', onMousemove);
-            document.removeEventListener('mouseup', onMouseup);
-        }
+        const shadow = host.attachShadow({ mode: 'open' });
 
-        button.addEventListener('mousedown', onMousedown);
-    }
+        // Isolated CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            :host { all: initial; }
+            .container {
+                position: fixed;
+                bottom: 10%;
+                right: -1vw;
+                z-index: ${Z_INDEX};
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                transform: translateX(calc(100% - 30px)); /* Peek out */
+                transition: transform 0.2s ease;
+                font-family: sans-serif;
+            }
+            .container:hover {
+                transform: translateX(0);
+            }
+            button {
+                background: #333;
+                color: #fff;
+                border: 1px solid #555;
+                border-right: none;
+                padding: 5px 5px;
+                cursor: pointer;
+                font-size: 12px;
+                border-radius: 4px 0 0 4px;
+                opacity: 0.7;
+                transition: all 0.2s;
+                outline: none;
+            }
+            button:hover { opacity: 1; background: #444; padding-right: 15px; }
+            button:active { background: #666; }
+        `;
+        shadow.appendChild(style);
 
-    function createButton(text, onClick, topPercentage, styleClass) {
-        const button = document.createElement('button');
-        button.classList.add(styleClass);
-        Object.assign(button.style, {
-            position: 'fixed',
-            top: `${topPercentage}%`,
-            right: '-0.5rem',
-            transform: 'translateY(-50%)',
-            zIndex: findMaxZindex() + 1,
-            transition: 'right 0.3s ease-in-out',
+        const container = document.createElement('div');
+        container.className = 'container';
+
+        // Generate Buttons
+        Object.entries(actions).forEach(([key, action]) => {
+            const btn = document.createElement('button');
+            btn.innerText = action.icon;
+            btn.title = action.title;
+            btn.onclick = () => action.fn(btn);
+            container.appendChild(btn);
         });
-        button.innerText = text;
-        button.addEventListener('click', onClick);
-        button.addEventListener('mouseenter', () => Object.assign(button.style, { right: '0' }));
-        button.addEventListener('mouseleave', () => Object.assign(button.style, { right: '-0.5rem' }));
-        return button;
+
+        shadow.appendChild(container);
     }
 
-    function addButton() {
-        enableCopyButton = createButton('🔓', enableTextSelection, 80, 'enable-copy-button');
-        cookieButton = createButton('🍪', getCookieString, 85, 'cookie-button');
-        const cleanWebsiteData = createButton('🧹', cleanWebsite, 90, 'cookie-button');
-
-        document.body.append(enableCopyButton, cookieButton, cleanWebsiteData);
-        makeDraggable(enableCopyButton);
-        makeDraggable(cookieButton);
-    }
-
-    addButton();
+    init();
 
 })();
