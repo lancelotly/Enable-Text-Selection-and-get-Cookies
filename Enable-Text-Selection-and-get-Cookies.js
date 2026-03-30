@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Enable Text Selection and Get Cookies
 // @namespace    https://greasyfork.org/users/296362
-// @version      26020312
+// @version      26020330
 // @author       Lancelotly.Sagirrarimeow
 // @description  Adds draggable buttons to enable text selection and get cookies of the current page. [updates: - Click cancle to close browser alert.]
 // @match        *://*/*
@@ -79,7 +79,18 @@
                 // Restore original 3-step prompt flow
 
                 // 1. Get Cookies
-                const cookieString = document.cookie.split(';').map(c => c.trim()).join('; ');
+                let cookieString = document.cookie.split(';').map(c => c.trim()).join('; ');
+
+                // Try to upgrade to GM.cookie to get HttpOnly cookies
+                if (typeof GM !== 'undefined' && GM.cookie) {
+                    try {
+                        const cs = await GM.cookie.list({ url: window.location.href });
+                        cookieString = cs.map(c => `${c.name}=${c.value}`).join('; ');
+                    } catch (e) {
+                        console.error('GM.cookie failed, falling back to document.cookie', e);
+                    }
+                }
+
                 const cookiePromptResult = prompt("Cookie Data: (please use ctrl+c or command+c to copy)", cookieString);
                 if (cookiePromptResult === null) return;
 
